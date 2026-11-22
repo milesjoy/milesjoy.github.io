@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miles' HomeLab & NAS 智能导航</title>
+  <!-- Tailwind CSS & Lucide Icons CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              accent: '#3b82f6',
+              purple: '#8b5cf6',
+              amber: '#f59e0b'
+            },
+            dark: {
+              900: '#0a0f1d',
+              800: '#111827',
+              700: '#1e293b',
+              600: '#334155'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"Segoe UI"', 'Roboto', 'sans-serif'],
+            mono: ['"Fira Code"', '"JetBrains Mono"', 'Consolas', 'monospace']
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.25s ease-out forwards',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0', transform: 'translateY(6px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar & Glassmorphism styles */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
+
+    .glass-card {
+      background: rgba(17, 24, 39, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-card:hover {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: rgba(59, 130, 246, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 14px 36px 0 rgba(0, 0, 0, 0.45), 0 0 20px -2px rgba(59, 130, 246, 0.2);
+    }
+
+    .glass-nav {
+      background: rgba(10, 15, 29, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bg-glow-radial {
+      background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.14), transparent 45%),
+                  radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.09), transparent 35%),
+                  radial-gradient(circle at 90% 80%, rgba(34, 197, 94, 0.07), transparent 40%);
+    }
+
+    /* Active & Route Badges */
+    .badge-lan { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
+    .badge-ddnsto { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); }
+    .badge-ipv6 { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); }
+
+    /* Calendar Grid styling */
+    .cal-day-cell {
+      transition: all 0.15s ease;
+    }
+    .cal-day-cell:hover {
+      transform: scale(1.08);
+      background: rgba(59, 130, 246, 0.25);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+    .cal-day-today {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(99, 102, 241, 0.4));
+      border: 1px solid rgba(147, 197, 253, 0.8) !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-screen font-sans selection:bg-brand-accent selection:text-white bg-glow-radial relative overflow-x-hidden">
+
+  <!-- ==================== HEADER / TOP BAR ==================== -->
+  <header class="sticky top-0 z-40 glass-nav px-4 lg:px-8 py-3.5 transition-all">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-lg shadow-blue-500/20 flex items-center justify-center">
+          <div class="w-full h-full bg-dark-900/90 rounded-[10px] flex items-center justify-center">
+            <i data-lucide="server" class="w-5 h-5 text-blue-400"></i>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Miles' HomeLab</h1>
+            <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">智能导流主页</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">局域网 · DDNSTO · IPv6 三模智能切换</p>
+        </div>
+      </div>
+
+      <!-- Center: Route Selector (三种模式过滤切换) -->
+      <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/60 shadow-inner">
+        <span class="text-xs text-slate-400 px-2.5 hidden md:inline-flex items-center gap-1.5 font-medium">
+          <i data-lucide="compass" class="w-3.5 h-3.5 text-blue-400"></i> 模式过滤:
+        </span>
+        <div class="grid grid-cols-3 gap-1" id="routeSelector">
+          <button onclick="setGlobalRoute('lan')" id="btn-route-lan" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>局域网 (LAN)</span>
+          </button>
+          <button onclick="setGlobalRoute('ddnsto')" id="btn-route-ddnsto" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+            <span>DDNSTO 穿透</span>
+          </button>
+          <button onclick="setGlobalRoute('ipv6')" id="btn-route-ipv6" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            <span>公网 IPv6</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Action Tools -->
+      <div class="flex items-center gap-2">
+        <button onclick="openAddServiceModal()" title="添加新站点" class="p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition-all shadow-lg shadow-blue-500/20 text-xs font-medium flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">新增站点</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINER ==================== -->
+  <main class="max-w-7xl mx-auto px-4 lg:px-8 py-7 space-y-7">
+
+    <!-- HERO SECTION: Clock (4 cols), Search & Filters (8 cols) -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      
+      <!-- Greeting & Time Widget (4 cols) -->
+      <div class="lg:col-span-4 glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between">
+        <div class="absolute -right-8 -bottom-8 w-28 h-28 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span id="greetingText" class="text-xs font-semibold tracking-wide text-blue-400 flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 全网设备在线守护中
+            </span>
+            <div class="flex items-center gap-1.5 font-mono text-[11px] px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" id="currentRouteIndicator"></span>
+              <span id="currentActiveRouteName">局域网 (16)</span>
+            </div>
+          </div>
+
+          <div class="flex items-baseline gap-2.5 my-1">
+            <div id="clockTime" class="text-3xl lg:text-4xl font-mono font-bold tracking-tight text-white drop-shadow-md">
+              12:00:00
+            </div>
+            <span id="clockPeriod" class="text-xs font-mono font-semibold text-slate-400 uppercase">PM</span>
+          </div>
+        </div>
+
+        <div class="mt-2 flex items-center justify-between text-xs text-slate-400 border-t border-slate-700/50 pt-2.5">
+          <span id="clockDate" class="flex items-center gap-1.5 font-mono">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-400"></i> 2026年9月1日 星期二
+          </span>
+          <span class="font-mono text-slate-400 text-[11px]">
+            <i data-lucide="cpu" class="w-3.5 h-3.5 inline text-emerald-400"></i> PVE + 群晖
+          </span>
+        </div>
+      </div>
+
+      <!-- Universal Search & Quick Filter Widget (8 cols) -->
+      <div class="lg:col-span-8 glass-card rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <!-- Search Engine Tabs -->
+          <div class="flex items-center justify-between gap-2 mb-2.5">
+            <div class="flex items-center gap-2 text-xs font-medium text-slate-400" id="searchEngineTabs">
+              <button onclick="setSearchEngine('services')" id="se-services" class="px-2.5 py-1 rounded-lg bg-blue-600/30 text-blue-300 border border-blue-500/40 font-semibold flex items-center gap-1">
+                <i data-lucide="layout-grid" class="w-3 h-3"></i> 站内即时过滤
+              </button>
+              <button onclick="setSearchEngine('bing')" id="se-bing" class="px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">Bing</button>
+              <button onclick="setSearchEngine('google')" id="se-google" class="px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">Google</button>
+              <button onclick="setSearchEngine('baidu')" id="se-baidu" class="px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">百度</button>
+              <button onclick="setSearchEngine('github')" id="se-github" class="px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">GitHub</button>
+            </div>
+            <span class="text-[11px] text-slate-400 hidden sm:inline-block font-mono">按 <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">/</kbd> 快速过滤</span>
+          </div>
+
+          <!-- Search Input Form -->
+          <form onsubmit="handleSearch(event)" class="relative flex items-center">
+            <div class="absolute left-4 pointer-events-none text-slate-400">
+              <i data-lucide="search" class="w-4 h-4" id="searchIcon"></i>
+            </div>
+            <input 
+              type="text" 
+              id="searchInput" 
+              oninput="handleServiceFilter(this.value)"
+              placeholder="输入站点名称、IP、端口过滤，或按回车搜索全网..." 
+              autocomplete="off"
+              class="w-full pl-11 pr-24 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner"
+            >
+            <button 
+              type="submit" 
+              class="absolute right-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-all shadow-md flex items-center gap-1"
+            >
+              <span>直达</span>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </form>
+        </div>
+
+        <!-- Quick Filter Category Pills -->
+        <div class="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5 text-xs no-scrollbar" id="categoryPillList">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== 📅 CALENDAR ARCHIVE: 龙头板块每日研报 ==================== -->
+    <section class="glass-card rounded-2xl p-5 border-l-4 border-l-amber-500 relative overflow-hidden">
+      <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        
+        <!-- Left Title -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-sm">
+            <i data-lucide="calendar-days" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-white flex items-center gap-1.5">
+                <span>龙头板块 · 每日研报月历</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono border border-amber-500/30">/longtoubankuai/YYYYMMDD.html</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">点击日历任意日期，即可一键直达对应日期的龙头板块复盘与研报页面</p>
+          </div>
+        </div>
+
+        <!-- Center/Right Month Selector & Quick Links -->
+        <div class="flex flex-wrap items-center gap-2 self-stretch sm:self-auto justify-between sm:justify-end">
+          
+          <!-- Month Switcher Controls -->
+          <div class="flex items-center bg-slate-900/90 rounded-xl p-1 border border-slate-700/80 shadow-inner">
+            <button onclick="changeCalendarMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition" title="上一月">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <span id="calCurrentMonthLabel" class="px-3 text-xs font-mono font-bold text-white min-w-[100px] text-center">
+              2026年09月
+            </span>
+            <button onclick="changeCalendarMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition" title="下一月">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Quick Today Shortcut -->
+          <button onclick="resetCalendarToCurrentMonth()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition" title="跳转至当前月份">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-blue-400"></i>
+            <span>本月</span>
+          </button>
+          <button onclick="openTodayLongtouReport()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition">
+            <i data-lucide="sparkle" class="w-3.5 h-3.5"></i>
+            <span>打开今日研报 (<span id="todayDateLabel">20260901</span>)</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Calendar Month Grid Container -->
+      <div class="pt-4">
+        <!-- Weekday Headers (Monday First) -->
+        <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-mono font-semibold text-slate-400 mb-2">
+          <div class="py-1">一</div>
+          <div class="py-1">二</div>
+          <div class="py-1">三</div>
+          <div class="py-1">四</div>
+          <div class="py-1">五</div>
+          <div class="text-rose-400/80 py-1">六</div>
+          <div class="text-rose-400/80 py-1">日</div>
+        </div>
+
+        <!-- Days Grid -->
+        <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1.5 text-xs font-mono">
+          <!-- Dynamically populated by renderCalendar() -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SERVICES GRID ==================== -->
+    <section>
+      <!-- Section Header -->
+      <div class="flex items-center justify-between mb-3.5">
+        <div class="flex items-center gap-2">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="grid" class="w-4 h-4 text-blue-400"></i>
+            <span>服务矩阵看板</span>
+          </h2>
+          <span id="serviceCountBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">共 16 个服务</span>
+        </div>
+        
+        <div class="text-xs text-slate-400 hidden sm:flex items-center gap-3 font-mono">
+          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> LAN 内网</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400"></span> DDNSTO 穿透</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-400"></span> IPv6 公网</span>
+        </div>
+      </div>
+
+      <!-- Cards Grid Container -->
+      <div id="servicesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- Dynamically rendered by JavaScript -->
+      </div>
+
+      <!-- Empty Filter State -->
+      <div id="emptyFilterState" class="hidden glass-card rounded-2xl p-12 text-center my-8">
+        <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-400">
+          <i data-lucide="search-x" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-sm font-semibold text-slate-200">当前模式下没有匹配的服务</h3>
+        <p class="text-xs text-slate-400 mt-1">该模式下部分仅内网站点已自动隐藏，您可以切换为【局域网 (LAN)】模式查看全部站点</p>
+        <button onclick="setGlobalRoute('lan')" class="mt-4 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition">
+          切换回局域网模式
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer class="max-w-7xl mx-auto px-4 lg:px-8 py-8 mt-12 border-t border-slate-800/80 text-slate-400 text-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-2 font-mono">
+      <span>Miles' HomeLab Hub</span>
+      <span>•</span>
+      <span>自适应 LAN / DDNSTO / IPv6 三模式动态过滤</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <button onclick="exportConfig()" class="hover:text-slate-200 transition flex items-center gap-1">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i> 备份配置
+      </button>
+      <button onclick="triggerImportConfig()" class="hover:text-slate-200 transition flex items-center gap-1">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i> 导入配置
+      </button>
+      <input type="file" id="configFileInput" accept=".json" class="hidden" onchange="importConfigFile(event)">
+      <button onclick="resetDefaultConfig()" class="hover:text-red-400 transition flex items-center gap-1">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 恢复初始数据
+      </button>
+    </div>
+  </footer>
+
+  <!-- ==================== MODAL: ADD / EDIT SERVICE ==================== -->
+  <div id="serviceModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md hidden flex items-center justify-center p-4 animate-fade-in">
+    <div class="bg-dark-800 border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      
+      <div class="px-6 py-4 border-b border-slate-700/80 flex items-center justify-between bg-slate-900/60">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <i data-lucide="app-window" class="w-5 h-5"></i>
+          </div>
+          <h3 class="text-base font-bold text-white" id="serviceModalTitle">新增 / 编辑站点</h3>
+        </div>
+        <button onclick="closeServiceModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleSaveService(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <input type="hidden" id="srv-id">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">网站/服务名称 *</label>
+            <input type="text" id="srv-name" required placeholder="例如: Web" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">分类 *</label>
+            <select id="srv-category" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500">
+              <option value="系统管理">系统管理</option>
+              <option value="效率工具">效率工具</option>
+              <option value="网络下载">网络下载</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-emerald-400 mb-1">1. 内网地址 (LAN) *</label>
+          <input type="text" id="srv-lan" required placeholder="例如: http://192.168.0.222:5000" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-slate-100 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-blue-400 mb-1">2. DDNSTO 穿透地址 (可选)</label>
+          <input type="text" id="srv-ddnsto" placeholder="例如: https://miles-nas.ddnsto.com:443" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-slate-100 focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-purple-400 mb-1">3. IPv6 / DDNS 访问地址 (可选)</label>
+          <input type="text" id="srv-ipv6" placeholder="例如: http://nas.mileswu.top:5000" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-slate-100 focus:outline-none focus:border-purple-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">图标 (Lucide 图标名)</label>
+            <input type="text" id="srv-icon" placeholder="例如: server, globe, hard-drive" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-slate-100 focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">色系风格</label>
+            <select id="srv-color" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500">
+              <option value="emerald">清新绿 (Emerald)</option>
+              <option value="blue">科技蓝 (Blue)</option>
+              <option value="purple">极光紫 (Purple)</option>
+              <option value="amber">琥珀金 (Amber)</option>
+              <option value="rose">珊瑚红 (Rose)</option>
+              <option value="cyan">天空青 (Cyan)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/60">
+          <button type="button" onclick="closeServiceModal()" class="px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-700 transition">
+            取消
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition shadow-lg shadow-blue-500/20">
+            保存站点
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
+  <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+  <script>
+    // ----------------------------------------------------
+    // 1. EXACT USER DATA DEFINITIONS (Web moved to 1st position)
+    // ----------------------------------------------------
+    const DEFAULT_SERVICES = [
+      {
+        id: 'web',
+        name: 'Web',
+        category: '系统管理',
+        lan: 'https://192.168.0.222',
+        ddnsto: 'https://miles_web.ddnsto.com:443',
+        ipv6: 'http://nas.mileswu.top:666',
+        icon: 'globe',
+        color: 'emerald',
+        desc: 'Web Station 站点服务与主页'
+      },
+      {
+        id: 'gateway',
+        name: '网关',
+        category: '系统管理',
+        lan: 'http://192.168.0.1',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'router',
+        color: 'emerald',
+        desc: '局域网主路由控制网关'
+      },
+      {
+        id: 'nas',
+        name: 'NAS',
+        category: '系统管理',
+        lan: 'http://192.168.0.222:5000',
+        ddnsto: 'https://miles_nas.ddnsto.com:443',
+        ipv6: 'http://nas.mileswu.top:5000',
+        icon: 'server',
+        color: 'blue',
+        desc: '群晖 DSM 存储与管理桌面'
+      },
+      {
+        id: 'baidu',
+        name: 'Baidu',
+        category: '网络下载',
+        lan: 'http://192.168.0.222:8092',
+        ddnsto: 'https://miles_baidu.ddnsto.com:443',
+        ipv6: 'http://nas.mileswu.top:8092',
+        icon: 'cloud-download',
+        color: 'cyan',
+        desc: '百度网盘自动下载客户端'
+      },
+      {
+        id: 'jupyter',
+        name: 'Jupyter',
+        category: '效率工具',
+        lan: 'http://192.168.0.222:8888/',
+        ddnsto: 'https://miles_jupyter.ddns.com:443',
+        ipv6: 'http://nas.mileswu.top:8888',
+        icon: 'file-code',
+        color: 'amber',
+        desc: 'Python 数据分析与交互开发'
+      },
+      {
+        id: 'pve',
+        name: 'PVE',
+        category: '系统管理',
+        lan: 'http://192.168.0.2:8006',
+        ddnsto: 'https://miles_pve.ddnsto.com:443',
+        ipv6: '',
+        icon: 'layers',
+        color: 'purple',
+        desc: 'Proxmox VE 虚拟化母机系统'
+      },
+      {
+        id: 'qbittorrent',
+        name: 'qbittorrent',
+        category: '网络下载',
+        lan: 'http://192.168.0.2:8095',
+        ddnsto: 'https://miles_qb.ddnsto.com:443',
+        ipv6: 'http://nas.mileswu.top:8095',
+        icon: 'download-cloud',
+        color: 'blue',
+        desc: 'PT/BT 高速种子下载客户端'
+      },
+      {
+        id: 'books',
+        name: '书库',
+        category: '效率工具',
+        lan: 'http://192.168.0.222:3055/',
+        ddnsto: 'https://miles-book.ddnsto.com:443',
+        ipv6: 'http://nas.mileswu.top:3055',
+        icon: 'book-open',
+        color: 'amber',
+        desc: 'Calibre 私人电子书阅读与管理'
+      },
+      {
+        id: 'obsidian',
+        name: 'Obsidian',
+        category: '效率工具',
+        lan: 'https://192.168.0.222:8081/',
+        ddnsto: 'https://miles-obsidian.ddnsto.com:443',
+        ipv6: 'https://nas.mileswu.top:8081',
+        icon: 'file-text',
+        color: 'purple',
+        desc: '个人知识库与笔记多端同步'
+      },
+      {
+        id: 'adguard',
+        name: 'AdGuardHome',
+        category: '系统管理',
+        lan: 'http://192.168.0.8',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'shield-check',
+        color: 'emerald',
+        desc: '全屋 DNS 广告拦截与隐私保护'
+      },
+      {
+        id: 'ikuai',
+        name: 'iKuai',
+        category: '系统管理',
+        lan: 'http://192.168.0.3',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'zap',
+        color: 'blue',
+        desc: '爱快流控与主软路由系统'
+      },
+      {
+        id: 'istore',
+        name: 'iStore',
+        category: '系统管理',
+        lan: 'http://192.168.0.4',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'box',
+        color: 'cyan',
+        desc: 'iStoreOS 轻路由与应用商店'
+      },
+      {
+        id: 'bleachwrt',
+        name: 'BleachWRT',
+        category: '系统管理',
+        lan: 'http://192.168.0.9',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'radio',
+        color: 'purple',
+        desc: 'OpenWrt 旁路网关与扩展插件'
+      },
+      {
+        id: 'emby',
+        name: 'Emby-1234',
+        category: '效率工具',
+        lan: 'http://192.168.0.222:8096',
+        ddnsto: '',
+        ipv6: 'http://nas.mileswu.top:8096',
+        icon: 'film',
+        color: 'rose',
+        desc: '家庭私有流媒体与影视海报墙'
+      },
+      {
+        id: 'phpmyadmin',
+        name: 'phpMyAdmin',
+        category: '系统管理',
+        lan: 'http://192.168.0.222/phpmyadmin/index.php',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'database',
+        color: 'amber',
+        desc: 'MySQL / MariaDB 数据库管理'
+      },
+      {
+        id: 'synology_black',
+        name: '黑群晖',
+        category: '系统管理',
+        lan: 'http://192.168.0.111:5003',
+        ddnsto: '',
+        ipv6: '',
+        icon: 'hard-drive',
+        color: 'blue',
+        desc: '黑群晖备用存储节点 (Port 5003)'
+      }
+    ];
+
+    let appState = {
+      currentRoute: 'lan', // 'lan' | 'ddnsto' | 'ipv6'
+      searchEngine: 'services',
+      services: loadServices()
+    };
+
+    let currentCategoryFilter = 'all';
+    let currentSearchFilter = '';
+
+    // Calendar State
+    let calYear = 2026;
+    let calMonth = 8; // 0-indexed (8 = September)
+
+    // ----------------------------------------------------
+    // 2. LIFECYCLE
+    // ----------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      // Sync calendar with actual date
+      const today = new Date();
+      calYear = today.getFullYear();
+      calMonth = today.getMonth();
+
+      initTimeAndGreeting();
+      renderRouteButtons();
+      renderCategoryCounters();
+      renderCalendar();
+      renderServices();
+      lucide.createIcons();
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          document.getElementById('searchInput').focus();
+        } else if (e.key === 'Escape') {
+          closeServiceModal();
+        }
+      });
+    });
+
+    // ----------------------------------------------------
+    // 3. STORAGE HELPERS
+    // ----------------------------------------------------
+    function loadServices() {
+      try {
+        const stored = localStorage.getItem('miles_homelab_services_v2');
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      } catch (err) {
+        console.error('Failed to load localStorage:', err);
+      }
+      return JSON.parse(JSON.stringify(DEFAULT_SERVICES));
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('miles_homelab_services_v2', JSON.stringify(appState.services));
+      } catch (err) {
+        console.error('Failed to save state:', err);
+      }
+    }
+
+    // ----------------------------------------------------
+    // 4. ROUTE SELECTION & RESOLVER (Mode-based filtering)
+    // ----------------------------------------------------
+    function isServiceValidForRoute(service, route) {
+      if (route === 'lan') {
+        return !!(service.lan && service.lan.trim());
+      }
+      if (route === 'ddnsto') {
+        return !!(service.ddnsto && service.ddnsto.trim());
+      }
+      if (route === 'ipv6') {
+        return !!(service.ipv6 && service.ipv6.trim());
+      }
+      return true;
+    }
+
+    function setGlobalRoute(route) {
+      appState.currentRoute = route;
+      renderRouteButtons();
+      renderCategoryCounters();
+      renderServices();
+      lucide.createIcons();
+
+      const names = { lan: '局域网 (LAN)', ddnsto: 'DDNSTO 穿透', ipv6: '公网 IPv6' };
+      showToast(`已切换为【${names[route]}】模式，无对应地址的站点已自动隐藏`, 'info');
+    }
+
+    function renderRouteButtons() {
+      const routes = ['lan', 'ddnsto', 'ipv6'];
+      routes.forEach(r => {
+        const btn = document.getElementById(`btn-route-${r}`);
+        if (!btn) return;
+        if (appState.currentRoute === r) {
+          btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm " + 
+            (r === 'lan' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 
+             r === 'ddnsto' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 
+             'bg-purple-500/20 text-purple-300 border border-purple-500/40');
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60";
+        }
+      });
+
+      const activeRouteServices = appState.services.filter(s => isServiceValidForRoute(s, appState.currentRoute));
+      const routeNames = {
+        lan: `局域网 (${activeRouteServices.length})`,
+        ddnsto: `DDNSTO (${activeRouteServices.length})`,
+        ipv6: `公网 IPv6 (${activeRouteServices.length})`
+      };
+      const badge = document.getElementById('currentActiveRouteName');
+      if (badge) badge.innerText = routeNames[appState.currentRoute] || '未知模式';
+
+      const indicator = document.getElementById('currentRouteIndicator');
+      if (indicator) {
+        indicator.className = `w-1.5 h-1.5 rounded-full animate-pulse ` + 
+          (appState.currentRoute === 'lan' ? 'bg-emerald-400' : appState.currentRoute === 'ddnsto' ? 'bg-blue-400' : 'bg-purple-400');
+      }
+    }
+
+    function handleCardClick(serviceId) {
+      const s = appState.services.find(item => item.id === serviceId);
+      if (!s) return;
+
+      let targetUrl = '';
+      if (appState.currentRoute === 'ddnsto') targetUrl = s.ddnsto;
+      else if (appState.currentRoute === 'ipv6') targetUrl = s.ipv6;
+      else targetUrl = s.lan;
+
+      if (targetUrl && targetUrl !== '#') {
+        window.open(targetUrl, '_blank');
+      } else {
+        showToast('该模式下无有效地址', 'error');
+      }
+    }
+
+    // ----------------------------------------------------
+    // 5. CALENDAR COMPONENT LOGIC (/longtoubankuai/YYYYMMDD.html)
+    // ----------------------------------------------------
+    function renderCalendar() {
+      const daysGrid = document.getElementById('calendarDaysGrid');
+      const label = document.getElementById('calCurrentMonthLabel');
+      const todayDateLabel = document.getElementById('todayDateLabel');
+
+      const now = new Date();
+      const todayYear = now.getFullYear();
+      const todayMonth = now.getMonth();
+      const todayDate = now.getDate();
+
+      const todayStr = `${todayYear}${String(todayMonth + 1).padStart(2, '0')}${String(todayDate).padStart(2, '0')}`;
+      if (todayDateLabel) todayDateLabel.innerText = todayStr;
+
+      // Update month label (e.g. 2026年09月)
+      if (label) {
+        label.innerText = `${calYear}年${String(calMonth + 1).padStart(2, '0')}月`;
+      }
+
+      // Calculate calendar dates (Monday as first day of week: 0 = Mon, ..., 6 = Sun)
+      const firstDayRaw = new Date(calYear, calMonth, 1).getDay(); // 0 = Sun, 1 = Mon, ...
+      const firstDayIndex = (firstDayRaw + 6) % 7; 
+      const totalDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const prevMonthTotalDays = new Date(calYear, calMonth, 0).getDate();
+
+      let html = '';
+
+      // 1. Previous Month Filler Cells
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        const d = prevMonthTotalDays - i;
+        const m = calMonth === 0 ? 12 : calMonth;
+        const y = calMonth === 0 ? calYear - 1 : calYear;
+        const dateCode = `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+        html += `
+          <div onclick="openLongtouReport('${dateCode}')" title="打开 /longtoubankuai/${dateCode}.html" class="cal-day-cell text-slate-400 py-2.5 rounded-xl border border-slate-800/40 bg-slate-900/40 flex flex-col items-center justify-center cursor-pointer hover:text-slate-400 hover:border-slate-700">
+            <span class="text-xs">${d}</span>
+          </div>
+        `;
+      }
+
+      // 2. Current Month Cells
+      for (let d = 1; d <= totalDaysInMonth; d++) {
+        const dateCode = `${calYear}${String(calMonth + 1).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+        const isToday = (calYear === todayYear && calMonth === todayMonth && d === todayDate);
+        const dayOfWeek = new Date(calYear, calMonth, d).getDay();
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+        html += `
+          <div onclick="openLongtouReport('${dateCode}')" title="点击查看【${dateCode}】研报: /longtoubankuai/${dateCode}.html" class="cal-day-cell py-2.5 rounded-xl border ${isToday ? 'cal-day-today' : 'border-slate-700/60 bg-slate-800/60 hover:bg-slate-800 hover:border-amber-500/50'} flex flex-col items-center justify-center cursor-pointer group shadow-sm">
+            <span class="text-xs font-semibold ${isToday ? 'text-white' : isWeekend ? 'text-rose-400' : 'text-slate-200'}">${d}</span>
+            <span class="text-[9px] text-slate-400 group-hover:text-amber-300 font-mono mt-0.5 leading-none">研报</span>
+          </div>
+        `;
+      }
+
+      // 3. Next Month Filler Cells to fill full rows
+      const currentCellsCount = firstDayIndex + totalDaysInMonth;
+      const nextDaysCount = (7 - (currentCellsCount % 7)) % 7;
+      for (let d = 1; d <= nextDaysCount; d++) {
+        const m = calMonth === 11 ? 1 : calMonth + 2;
+        const y = calMonth === 11 ? calYear + 1 : calYear;
+        const dateCode = `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+        html += `
+          <div onclick="openLongtouReport('${dateCode}')" title="打开 /longtoubankuai/${dateCode}.html" class="cal-day-cell text-slate-400 py-2.5 rounded-xl border border-slate-800/40 bg-slate-900/40 flex flex-col items-center justify-center cursor-pointer hover:text-slate-400 hover:border-slate-700">
+            <span class="text-xs">${d}</span>
+          </div>
+        `;
+      }
+
+      daysGrid.innerHTML = html;
+    }
+
+    function changeCalendarMonth(delta) {
+      calMonth += delta;
+      if (calMonth < 0) {
+        calMonth = 11;
+        calYear -= 1;
+      } else if (calMonth > 11) {
+        calMonth = 0;
+        calYear += 1;
+      }
+      renderCalendar();
+    }
+
+    function resetCalendarToCurrentMonth() {
+      const now = new Date();
+      calYear = now.getFullYear();
+      calMonth = now.getMonth();
+      renderCalendar();
+      showToast('已切换至当月日历', 'info');
+    }
+
+    function openLongtouReport(dateCode) {
+      const targetUrl = `/longtoubankuai/${dateCode}.html`;
+      showToast(`正在打开 ${dateCode} 龙头板块研报...`, 'success');
+      window.open(targetUrl, '_blank');
+    }
+
+    function openTodayLongtouReport() {
+      const now = new Date();
+      const dateCode = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      openLongtouReport(dateCode);
+    }
+
+    // ----------------------------------------------------
+    // 6. RENDER SERVICES (WITH ROUTE FILTERING)
+    // ----------------------------------------------------
+    function renderCategoryCounters() {
+      // Base filtered pool according to active route mode!
+      const validForRoute = appState.services.filter(s => isServiceValidForRoute(s, appState.currentRoute));
+
+      const counts = {
+        all: validForRoute.length,
+        '系统管理': validForRoute.filter(s => s.category === '系统管理').length,
+        '效率工具': validForRoute.filter(s => s.category === '效率工具').length,
+        '网络下载': validForRoute.filter(s => s.category === '网络下载').length
+      };
+
+      const container = document.getElementById('categoryPillList');
+      if (container) {
+        container.innerHTML = `
+          <button onclick="filterByCategory('all')" class="cat-pill ${currentCategoryFilter === 'all' ? 'active bg-slate-800 text-blue-400 border border-blue-500/30 font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/50'} px-3.5 py-1.5 rounded-full whitespace-nowrap transition">全部 (${counts.all})</button>
+          <button onclick="filterByCategory('系统管理')" class="cat-pill ${currentCategoryFilter === '系统管理' ? 'active bg-slate-800 text-blue-400 border border-blue-500/30 font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/50'} px-3.5 py-1.5 rounded-full whitespace-nowrap transition">系统管理 (${counts['系统管理']})</button>
+          <button onclick="filterByCategory('效率工具')" class="cat-pill ${currentCategoryFilter === '效率工具' ? 'active bg-slate-800 text-blue-400 border border-blue-500/30 font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/50'} px-3.5 py-1.5 rounded-full whitespace-nowrap transition">效率工具 (${counts['效率工具']})</button>
+          <button onclick="filterByCategory('网络下载')" class="cat-pill ${currentCategoryFilter === '网络下载' ? 'active bg-slate-800 text-blue-400 border border-blue-500/30 font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/50'} px-3.5 py-1.5 rounded-full whitespace-nowrap transition">网络下载 (${counts['网络下载']})</button>
+        `;
+      }
+    }
+
+    function renderServices() {
+      const container = document.getElementById('servicesGrid');
+      const countBadge = document.getElementById('serviceCountBadge');
+      const emptyState = document.getElementById('emptyFilterState');
+
+      // 1. Strict route mode validity filtering
+      const validInCurrentRoute = appState.services.filter(s => isServiceValidForRoute(s, appState.currentRoute));
+
+      // 2. Category and Search text filtering
+      const filtered = validInCurrentRoute.filter(s => {
+        const matchesCategory = currentCategoryFilter === 'all' || s.category === currentCategoryFilter;
+        const q = currentSearchFilter.toLowerCase().trim();
+        const matchesSearch = !q || 
+          s.name.toLowerCase().includes(q) || 
+          (s.lan && s.lan.toLowerCase().includes(q)) ||
+          (s.ddnsto && s.ddnsto.toLowerCase().includes(q)) ||
+          (s.ipv6 && s.ipv6.toLowerCase().includes(q)) ||
+          (s.desc && s.desc.toLowerCase().includes(q)) ||
+          (s.category && s.category.toLowerCase().includes(q));
+        return matchesCategory && matchesSearch;
+      });
+
+      const modeNames = { lan: '局域网', ddnsto: 'DDNSTO', ipv6: 'IPv6' };
+      countBadge.innerText = `【${modeNames[appState.currentRoute]}模式】显示 ${filtered.length} / 共 ${validInCurrentRoute.length} 个可用服务`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      const colorMap = {
+        emerald: { bg: 'from-emerald-500/10 to-teal-500/5', text: 'text-emerald-400' },
+        blue: { bg: 'from-blue-500/10 to-indigo-500/5', text: 'text-blue-400' },
+        purple: { bg: 'from-purple-500/10 to-fuchsia-500/5', text: 'text-purple-400' },
+        amber: { bg: 'from-amber-500/10 to-orange-500/5', text: 'text-amber-400' },
+        rose: { bg: 'from-rose-500/10 to-pink-500/5', text: 'text-rose-400' },
+        cyan: { bg: 'from-cyan-500/10 to-blue-500/5', text: 'text-cyan-400' }
+      };
+
+      container.innerHTML = filtered.map(s => {
+        const c = colorMap[s.color] || colorMap.blue;
+
+        // Current active display URL
+        let activeUrl = s.lan;
+        if (appState.currentRoute === 'ddnsto') activeUrl = s.ddnsto;
+        else if (appState.currentRoute === 'ipv6') activeUrl = s.ipv6;
+
+        let displayHost = activeUrl || '';
+        try {
+          const urlObj = new URL(activeUrl);
+          displayHost = urlObj.host + (urlObj.pathname !== '/' ? urlObj.pathname : '');
+        } catch(e) {}
+
+        return `
+          <div class="glass-card rounded-2xl p-5 flex flex-col justify-between group relative overflow-hidden bg-gradient-to-b ${c.bg}">
+            
+            <!-- Card Body Clickable -->
+            <div class="cursor-pointer" onclick="handleCardClick('${s.id}')">
+              <!-- Top Row: Icon + Title + Category Tag -->
+              <div class="flex items-start justify-between gap-2.5 mb-2.5">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-slate-800/90 border border-slate-700/80 flex items-center justify-center ${c.text} group-hover:scale-105 group-hover:border-blue-500/40 transition-all shadow-md">
+                    <i data-lucide="${s.icon || 'server'}" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-white group-hover:text-blue-400 transition flex items-center gap-1">
+                      <span>${s.name}</span>
+                      <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"></i>
+                    </h3>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="font-mono text-[11px] text-slate-400 truncate max-w-[150px]" title="${activeUrl}">${displayHost}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Category Pill -->
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800/90 text-slate-400 border border-slate-700/60 whitespace-nowrap">
+                  ${s.category}
+                </span>
+              </div>
+
+              <p class="text-xs text-slate-400 leading-relaxed mb-3 line-clamp-2">
+                ${s.desc || 'Miles HomeLab 自建服务'}
+              </p>
+            </div>
+
+            <!-- Route Quick Direct Links & Action Buttons -->
+            <div class="pt-3 border-t border-slate-700/40 flex items-center justify-between gap-1 text-[11px]">
+              
+              <!-- Direct Badges (Only visible if valid) -->
+              <div class="flex items-center gap-1.5">
+                ${s.lan ? `
+                  <a href="${s.lan}" target="_blank" rel="noopener noreferrer" title="局域网: ${s.lan}" class="px-2 py-0.5 rounded-md font-mono transition ${appState.currentRoute === 'lan' ? 'badge-lan font-semibold' : 'bg-slate-800/80 text-slate-300 hover:text-emerald-400 hover:bg-slate-800'}">
+                    LAN
+                  </a>
+                ` : ''}
+
+                ${s.ddnsto ? `
+                  <a href="${s.ddnsto}" target="_blank" rel="noopener noreferrer" title="DDNSTO穿透: ${s.ddnsto}" class="px-2 py-0.5 rounded-md font-mono transition ${appState.currentRoute === 'ddnsto' ? 'badge-ddnsto font-semibold' : 'bg-slate-800/80 text-slate-300 hover:text-blue-400 hover:bg-slate-800'}">
+                    DDNSTO
+                  </a>
+                ` : ''}
+
+                ${s.ipv6 ? `
+                  <a href="${s.ipv6}" target="_blank" rel="noopener noreferrer" title="IPv6公网: ${s.ipv6}" class="px-2 py-0.5 rounded-md font-mono transition ${appState.currentRoute === 'ipv6' ? 'badge-ipv6 font-semibold' : 'bg-slate-800/80 text-slate-300 hover:text-purple-400 hover:bg-slate-800'}">
+                    IPv6
+                  </a>
+                ` : ''}
+              </div>
+
+              <!-- Edit & Delete -->
+              <div class="flex items-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                <button onclick="openEditServiceModal('${s.id}')" title="编辑站点" class="p-1 rounded-lg hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 transition">
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                </button>
+                <button onclick="deleteService('${s.id}')" title="删除" class="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ----------------------------------------------------
+    // 7. TIME & CLOCK LOGIC
+    // ----------------------------------------------------
+    function initTimeAndGreeting() {
+      updateTime();
+      setInterval(updateTime, 1000);
+    }
+
+    function updateTime() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const period = now.getHours() >= 12 ? 'PM' : 'AM';
+
+      const clockEl = document.getElementById('clockTime');
+      const periodEl = document.getElementById('clockPeriod');
+      const dateEl = document.getElementById('clockDate');
+      const greetingEl = document.getElementById('greetingText');
+
+      if (clockEl) clockEl.innerText = `${hours}:${minutes}:${seconds}`;
+      if (periodEl) periodEl.innerText = period;
+
+      const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
+      if (dateEl) {
+        dateEl.innerHTML = `<i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-400"></i> ${dateStr}`;
+      }
+
+      const h = now.getHours();
+      let greeting = '全网设备在线守护中';
+      if (h >= 12 && h < 18) greeting = 'HomeLab 稳定运转中';
+      else if (h >= 18 && h < 24) greeting = '舒适享受数字生活';
+      else if (h < 6) greeting = '夜深了，注意劳逸结合';
+
+      if (greetingEl) {
+        greetingEl.innerHTML = `<i data-lucide="sparkles" class="w-3.5 h-3.5"></i> ${greeting}`;
+      }
+    }
+
+    // ----------------------------------------------------
+    // 8. SEARCH & FILTERS
+    // ----------------------------------------------------
+    function handleServiceFilter(val) {
+      currentSearchFilter = val;
+      renderServices();
+      lucide.createIcons();
+    }
+
+    function clearSearchFilter() {
+      currentSearchFilter = '';
+      currentCategoryFilter = 'all';
+      document.getElementById('searchInput').value = '';
+      renderCategoryCounters();
+      renderServices();
+      lucide.createIcons();
+    }
+
+    function filterByCategory(cat) {
+      currentCategoryFilter = cat;
+      renderCategoryCounters();
+      renderServices();
+      lucide.createIcons();
+    }
+
+    function setSearchEngine(engine) {
+      appState.searchEngine = engine;
+      ['services', 'bing', 'google', 'baidu', 'github'].forEach(e => {
+        const btn = document.getElementById(`se-${e}`);
+        if (!btn) return;
+        if (e === engine) {
+          btn.className = "px-2.5 py-1 rounded-lg bg-blue-600/30 text-blue-300 border border-blue-500/40 font-semibold flex items-center gap-1";
+        } else {
+          btn.className = "px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition";
+        }
+      });
+    }
+
+    function handleSearch(e) {
+      e.preventDefault();
+      const val = document.getElementById('searchInput').value.trim();
+      if (!val) return;
+
+      const engine = appState.searchEngine;
+      if (engine === 'services') {
+        const validServices = appState.services.filter(s => isServiceValidForRoute(s, appState.currentRoute));
+        const matched = validServices.find(s => 
+          s.name.toLowerCase().includes(val.toLowerCase()) || 
+          (s.lan && s.lan.toLowerCase().includes(val.toLowerCase()))
+        );
+        if (matched) {
+          handleCardClick(matched.id);
+          return;
+        }
+        window.open(`https://www.bing.com/search?q=${encodeURIComponent(val)}`, '_blank');
+        return;
+      }
+
+      const engines = {
+        bing: `https://www.bing.com/search?q=${encodeURIComponent(val)}`,
+        google: `https://www.google.com/search?q=${encodeURIComponent(val)}`,
+        baidu: `https://www.baidu.com/s?wd=${encodeURIComponent(val)}`,
+        github: `https://github.com/search?q=${encodeURIComponent(val)}`
+      };
+
+      if (engines[engine]) {
+        window.open(engines[engine], '_blank');
+      }
+    }
+
+    // ----------------------------------------------------
+    // 9. MODAL: ADD / EDIT SERVICE
+    // ----------------------------------------------------
+    function openAddServiceModal() {
+      document.getElementById('serviceModalTitle').innerText = '新增 HomeLab 站点';
+      document.getElementById('srv-id').value = '';
+      document.getElementById('srv-name').value = '';
+      document.getElementById('srv-category').value = '系统管理';
+      document.getElementById('srv-lan').value = 'http://192.168.0.';
+      document.getElementById('srv-ddnsto').value = '';
+      document.getElementById('srv-ipv6').value = '';
+      document.getElementById('srv-icon').value = 'server';
+      document.getElementById('srv-color').value = 'blue';
+      
+      document.getElementById('serviceModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function openEditServiceModal(id) {
+      const s = appState.services.find(item => item.id === id);
+      if (!s) return;
+
+      document.getElementById('serviceModalTitle').innerText = '编辑站点信息';
+      document.getElementById('srv-id').value = s.id;
+      document.getElementById('srv-name').value = s.name;
+      document.getElementById('srv-category').value = s.category || '系统管理';
+      document.getElementById('srv-lan').value = s.lan || '';
+      document.getElementById('srv-ddnsto').value = s.ddnsto || '';
+      document.getElementById('srv-ipv6').value = s.ipv6 || '';
+      document.getElementById('srv-icon').value = s.icon || 'server';
+      document.getElementById('srv-color').value = s.color || 'blue';
+
+      document.getElementById('serviceModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeServiceModal() {
+      document.getElementById('serviceModal').classList.add('hidden');
+    }
+
+    function handleSaveService(e) {
+      e.preventDefault();
+      const id = document.getElementById('srv-id').value || 'srv_' + Date.now();
+      const name = document.getElementById('srv-name').value.trim();
+      const category = document.getElementById('srv-category').value;
+      const lan = document.getElementById('srv-lan').value.trim();
+      const ddnsto = document.getElementById('srv-ddnsto').value.trim();
+      const ipv6 = document.getElementById('srv-ipv6').value.trim();
+      const icon = document.getElementById('srv-icon').value.trim() || 'server';
+      const color = document.getElementById('srv-color').value;
+
+      const existingIndex = appState.services.findIndex(s => s.id === id);
+      const newService = { 
+        id, 
+        name, 
+        category, 
+        lan, 
+        ddnsto, 
+        ipv6, 
+        icon, 
+        color, 
+        desc: `${category} · ${name}` 
+      };
+
+      if (existingIndex >= 0) {
+        appState.services[existingIndex] = newService;
+        showToast(`已更新站点: ${name}`, 'success');
+      } else {
+        appState.services.push(newService);
+        showToast(`已新增站点: ${name}`, 'success');
+      }
+
+      saveState();
+      renderCategoryCounters();
+      renderServices();
+      closeServiceModal();
+      lucide.createIcons();
+    }
+
+    function deleteService(id) {
+      const s = appState.services.find(item => item.id === id);
+      if (!s) return;
+      if (confirm(`确定要删除站点【${s.name}】吗？`)) {
+        appState.services = appState.services.filter(item => item.id !== id);
+        saveState();
+        renderCategoryCounters();
+        renderServices();
+        showToast(`已删除站点: ${s.name}`, 'info');
+        lucide.createIcons();
+      }
+    }
+
+    // ----------------------------------------------------
+    // 10. BACKUP & RESTORE
+    // ----------------------------------------------------
+    function exportConfig() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState.services, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `miles_homelab_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('已导出站点配置备份', 'success');
+    }
+
+    function triggerImportConfig() {
+      document.getElementById('configFileInput').click();
+    }
+
+    function importConfigFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (Array.isArray(imported)) {
+            appState.services = imported;
+            saveState();
+            renderCategoryCounters();
+            renderServices();
+            lucide.createIcons();
+            showToast('站点配置导入成功！', 'success');
+          } else {
+            showToast('配置文件格式不正确', 'error');
+          }
+        } catch (err) {
+          showToast('无法解析 JSON 文件', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function resetDefaultConfig() {
+      if (confirm('确定要恢复初始 16 个站点列表吗？')) {
+        appState.services = JSON.parse(JSON.stringify(DEFAULT_SERVICES));
+        saveState();
+        renderCategoryCounters();
+        renderServices();
+        lucide.createIcons();
+        showToast('已恢复初始 16 个服务站点', 'info');
+      }
+    }
+
+    // ----------------------------------------------------
+    // 11. TOAST NOTIFICATION
+    // ----------------------------------------------------
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-950/90 text-emerald-300 border-emerald-500/40',
+        error: 'bg-rose-950/90 text-rose-300 border-rose-500/40',
+        info: 'bg-slate-900/90 text-blue-300 border-blue-500/40'
+      };
+
+      const icons = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        info: 'info'
+      };
+
+      toast.className = `flex items-center gap-2.5 px-4 py-2.5 rounded-xl border backdrop-blur-md shadow-xl text-xs font-medium animate-fade-in ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4"></i>
+        <span>${msg}</span>
+      `;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
